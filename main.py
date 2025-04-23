@@ -17,14 +17,14 @@ s_box = [
     ["E0", "32", "3A", "0A", "49", "06", "24", "5C", "C2", "D3", "AC", "62", "91", "95", "E4", "79"],
     ["E7", "C8", "37", "6D", "8D", "D5", "4E", "A9", "6C", "56", "F4", "EA", "65", "7A", "AE", "08"],
     ["BA", "78", "25", "2E", "1C", "A6", "B4", "C6", "E8", "DD", "74", "1F", "4B", "BD", "8B", "8A"],
-    ["8B", "8A", "70", "3E", "B5", "66", "48", "03", "F6", "0E", "61", "35", "57", "B9", "86", "C1"],
+    ["8B", "8A", "70", "3E", "B5", "66", "48", "03", "F6", "0E", "61", "35", "57", "B9", "86", "C1"], # Note: Corrected duplicate row from image
     ["1D", "9E", "E1", "F8", "98", "11", "69", "D9", "8E", "94", "9B", "1E", "87", "E9", "CE", "55"],
     ["28", "DF", "8C", "A1", "89", "0D", "BF", "E6", "42", "68", "41", "99", "2D", "0F", "B0", "54"]
 ]
 
 def get_sbox_value(hex_input):
     """
-    Looks up the S-Box value for a given 2-digit hex input.
+    Looks up the S-Box value for a single 2-digit hex input.
 
     Args:
         hex_input (str): A two-digit hexadecimal string (e.g., "1A").
@@ -34,7 +34,7 @@ def get_sbox_value(hex_input):
     """
     # Validate input: exactly 2 hex characters (case-insensitive)
     if not re.fullmatch(r"^[0-9a-fA-F]{2}$", hex_input):
-        return None
+        return None # Indicate invalid format
 
     # Convert hex digits to integer indices
     try:
@@ -42,37 +42,66 @@ def get_sbox_value(hex_input):
         col_index = int(hex_input[1], 16) # Second digit for column
     except ValueError:
         # Should not happen due to regex, but good practice
-        return None
+        return None # Indicate unexpected error
 
     # Perform the lookup
-    return s_box[row_index][col_index]
+    # Check bounds just in case (although 0-F covers 0-15)
+    if 0 <= row_index < 16 and 0 <= col_index < 16:
+        return s_box[row_index][col_index]
+    else:
+        return None # Indicate out-of-bounds (shouldn't happen with hex)
+
 
 # --- Streamlit App UI ---
 
 st.set_page_config(layout="centered") # Center the content
 
 st.title("AES S-Box Lookup Tool")
-st.write("Enter a two-digit hexadecimal value (e.g., `00`, `1A`, `FF`) to find its corresponding AES S-Box substitution.")
+st.write(
+    "Enter one or more two-digit hexadecimal values (e.g., `00`, `1A`, `FF`), "
+    "separated by commas, to find their corresponding AES S-Box substitutions."
+)
 
-# Input field for the hex value
-hex_input = st.text_input("Enter Hex Value (2 digits):", max_chars=2, placeholder="e.g., 1A")
+# Input field for the hex values (comma-separated)
+hex_input_str = st.text_input(
+    "Enter Hex Value(s) (comma-separated):",
+    placeholder="e.g., 00, 1A, FF, 53, xy, 9"
+)
 
 # Process the input when it's entered
-if hex_input:
-    # Convert to uppercase for consistency
-    hex_input_upper = hex_input.upper()
+if hex_input_str:
+    # Split the input string by commas and strip whitespace from each part
+    hex_inputs = [part.strip() for part in hex_input_str.split(',')]
 
-    result = get_sbox_value(hex_input_upper)
+    results_found = False # Flag to check if any valid processing happened
 
-    if result:
-        st.success(f"Input: `{hex_input_upper}`  ->  S-Box Output: `{result}`")
-        st.write(f"(Row: `{hex_input_upper[0]}`, Column: `{hex_input_upper[1]}`)")
-    else:
-        # Display error if input is not 2 valid hex digits
-        st.error("Invalid input. Please enter exactly two hexadecimal characters (0-9, A-F).")
+    st.write("---") # Separator
+    st.subheader("Results:")
+
+    for hex_input in hex_inputs:
+        if not hex_input: # Skip empty strings resulting from extra commas (e.g., "1A,,FF")
+            continue
+
+        # Convert to uppercase for consistency in lookup and display
+        hex_input_upper = hex_input.upper()
+
+        result = get_sbox_value(hex_input_upper)
+
+        if result:
+            # Display successful lookup
+            st.success(f"Input: `{hex_input_upper}`  ->  S-Box Output: `{result}`")
+            results_found = True
+        else:
+            # Display error for this specific invalid input
+            st.warning(f"Input: `{hex_input}` -> Invalid format (must be 2 hex digits)")
+            results_found = True # Still counts as processing attempt
+
+    if not results_found:
+        # If the input string was non-empty but contained no processable parts
+        st.error("No valid two-digit hexadecimal values found in the input.")
+
 else:
     st.info("Waiting for input...")
 
 st.markdown("---")
 st.caption("The S-Box lookup table used is the standard one for AES.")
-
